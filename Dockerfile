@@ -3,10 +3,14 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
+# Install git (required for husky if it runs during install)
+RUN apk add --no-cache git
+
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
+# Install dependencies (HUSKY=0 skips Git hooks installation)
+ENV HUSKY=0
 RUN npm ci
 
 # Copy source code
@@ -21,8 +25,9 @@ FROM node:18-alpine AS production
 WORKDIR /app
 
 # Install production dependencies only
+# Skip husky prepare script (Git hooks not needed in containers)
 COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist
