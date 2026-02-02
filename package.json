@@ -1,6 +1,6 @@
 {
   "name": "nestjs-infra-template",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Production-ready NestJS infrastructure template with PostgreSQL, Redis, Winston logging, and comprehensive error handling",
   "author": "",
   "private": true,
