@@ -1,3 +1,4 @@
+import { ConfigFactory } from '@nestjs/config';
 import { env } from '../../config/env';
 import databaseConfig from '../../config/database.config';
 import redisConfig from '../../config/redis.config';
@@ -14,11 +15,8 @@ export class ConfigurationLoaderFactory {
    * Creates array of configuration loaders based on enabled features
    * @returns Array of configuration loader functions
    */
-  static createLoaders(): Array<any> {
-    const loaders: Array<any> = [
-      loggerConfig,
-      jwtConfig,
-    ];
+  static createLoaders(): Array<ConfigFactory> {
+    const loaders: Array<ConfigFactory> = [loggerConfig, jwtConfig];
 
     // Add database config if database is enabled
     if (env.USE_DATABASE) {
@@ -32,7 +30,7 @@ export class ConfigurationLoaderFactory {
 
     // Prepend vault loader if vault is enabled
     if (env.USE_VAULT) {
-      return [vaultLoader, ...loaders];
+      return [vaultLoader as ConfigFactory, ...loaders];
     }
 
     return loaders;

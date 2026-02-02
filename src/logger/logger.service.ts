@@ -23,12 +23,13 @@ export class CustomLoggerService implements LoggerService {
             winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
             winston.format.errors({ stack: true }),
             winston.format.colorize(),
-            winston.format.printf(({ level, message, timestamp, ...meta }) => {
+            winston.format.printf((info) => {
+              const { level, message, timestamp, ...meta } = info;
               const metaString =
                 Object.keys(meta).length > 0
                   ? `\n${JSON.stringify(meta, null, 2)}`
                   : '';
-              return `${timestamp} [${level}]: ${message}${metaString}`;
+              return `${String(timestamp)} [${String(level)}]: ${String(message)}${metaString}`;
             }),
           );
 
@@ -39,7 +40,7 @@ export class CustomLoggerService implements LoggerService {
     });
   }
 
-  private maskSensitiveData(data: any): any {
+  private maskSensitiveData(data: unknown): unknown {
     if (typeof data !== 'object' || data === null) {
       return data;
     }
@@ -48,7 +49,9 @@ export class CustomLoggerService implements LoggerService {
       return data.map((item) => this.maskSensitiveData(item));
     }
 
-    const masked = { ...data };
+    const masked: Record<string, unknown> = {
+      ...(data as Record<string, unknown>),
+    };
     for (const key of Object.keys(masked)) {
       if (
         this.sensitiveFields.some((field) =>
@@ -56,33 +59,33 @@ export class CustomLoggerService implements LoggerService {
         )
       ) {
         masked[key] = '***MASKED***';
-      } else if (typeof masked[key] === 'object') {
+      } else if (typeof masked[key] === 'object' && masked[key] !== null) {
         masked[key] = this.maskSensitiveData(masked[key]);
       }
     }
     return masked;
   }
 
-  log(message: string, context?: any) {
-    this.logger.info(message, this.maskSensitiveData(context));
+  log(message: string, context?: unknown): void {
+    this.logger.info(message, this.maskSensitiveData(context ?? {}));
   }
 
-  error(message: string, trace?: string, context?: any) {
+  error(message: string, trace?: string, context?: unknown): void {
     this.logger.error(message, {
       trace,
-      ...this.maskSensitiveData(context),
+      ...(this.maskSensitiveData(context ?? {}) as object),
     });
   }
 
-  warn(message: string, context?: any) {
-    this.logger.warn(message, this.maskSensitiveData(context));
+  warn(message: string, context?: unknown): void {
+    this.logger.warn(message, this.maskSensitiveData(context ?? {}));
   }
 
-  debug(message: string, context?: any) {
-    this.logger.debug(message, this.maskSensitiveData(context));
+  debug(message: string, context?: unknown): void {
+    this.logger.debug(message, this.maskSensitiveData(context ?? {}));
   }
 
-  verbose(message: string, context?: any) {
-    this.logger.verbose(message, this.maskSensitiveData(context));
+  verbose(message: string, context?: unknown): void {
+    this.logger.verbose(message, this.maskSensitiveData(context ?? {}));
   }
 }

@@ -9,7 +9,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   constructor(private readonly configService: ConfigService) {}
 
-  async onModuleInit() {
+  async onModuleInit(): Promise<void> {
     const config = this.configService.get<RedisConfig>('redis')!;
 
     this.client = new Redis({
@@ -31,6 +31,9 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     this.client.on('connect', () => {
       console.log('Redis connected successfully');
     });
+
+    // Wait for connection to be established
+    await this.client.ping();
   }
 
   async onModuleDestroy() {

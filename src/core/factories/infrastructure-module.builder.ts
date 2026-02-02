@@ -53,7 +53,7 @@ class LoggerLoadStrategy implements ModuleLoadStrategy {
 /**
  * Builder for infrastructure modules
  * Implements Builder Pattern with Strategy Pattern for module loading
- * 
+ *
  * @example
  * const modules = InfrastructureModuleBuilder.create()
  *   .withLogger()

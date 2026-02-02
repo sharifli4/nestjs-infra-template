@@ -7,9 +7,14 @@ import {
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { ConfigService } from '@nestjs/config';
+import { Response, Request } from 'express';
 import { CustomLoggerService } from './logger.service';
 import { LoggerConfig } from '../config/logger.config';
 import { randomUUID } from 'crypto';
+
+interface RequestWithCorrelation extends Request {
+  correlationId: string;
+}
 
 @Injectable()
 export class LoggerInterceptor implements NestInterceptor {
@@ -23,9 +28,11 @@ export class LoggerInterceptor implements NestInterceptor {
     this.excludePaths = config.excludePaths;
   }
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    const request = context.switchToHttp().getRequest();
-    const { method, url, body } = request;
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    const req = context.switchToHttp().getRequest<RequestWithCorrelation>();
+    const method = req.method;
+    const url = req.url;
+    const body = req.body as unknown;
 
     // Skip logging for excluded paths
     if (this.excludePaths.some((path) => url.includes(path))) {
@@ -34,7 +41,7 @@ export class LoggerInterceptor implements NestInterceptor {
 
     // Add correlation ID
     const correlationId = randomUUID();
-    request.correlationId = correlationId;
+    req.correlationId = correlationId;
 
     const now = Date.now();
 
@@ -47,9 +54,9 @@ export class LoggerInterceptor implements NestInterceptor {
 
     return next.handle().pipe(
       tap({
-        next: (data) => {
-          const response = context.switchToHttp().getResponse();
-          const { statusCode } = response;
+        next: () => {
+          const response = context.switchToHttp().getResponse<Response>();
+          const statusCode = response.statusCode;
           const responseTime = Date.now() - now;
 
           this.logger.log('Request completed', {
@@ -60,10 +67,10 @@ export class LoggerInterceptor implements NestInterceptor {
             correlationId,
           });
         },
-        error: (error) => {
+        error: (error: Error) => {
           const responseTime = Date.now() - now;
 
-          this.logger.error('Request failed', error.stack, {
+          this.logger.error('Request failed', error.stack ?? 'No stack trace', {
             method,
             url,
             error: error.message,

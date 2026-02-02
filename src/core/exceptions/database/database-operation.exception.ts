@@ -3,9 +3,7 @@ import { ExceptionTypeEnum } from '../exception-type.enum';
 import { BaseExceptionDto } from '../base-exception.dto';
 
 export class DatabaseOperationException extends HttpException {
-  private readonly logger: Logger = new Logger(
-    DatabaseOperationException.name,
-  );
+  private readonly logger: Logger = new Logger(DatabaseOperationException.name);
 
   constructor(error: Error, methodName: string) {
     const baseExceptionDto: BaseExceptionDto =

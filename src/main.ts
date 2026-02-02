@@ -106,11 +106,9 @@ async function bootstrap() {
 
   await app.listen(env.PORT);
 
-  logger.log(
-    `🚀 Application is running on: http://localhost:${env.PORT}/api`,
-  );
+  logger.log(`🚀 Application is running on: http://localhost:${env.PORT}/api`);
   logger.log(`📚 Swagger documentation: http://localhost:${env.PORT}/docs`);
   logger.log(`🌍 Environment: ${env.NODE_ENV}`);
 }
 
-bootstrap();
+void bootstrap();

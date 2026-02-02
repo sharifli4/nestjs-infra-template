@@ -5,23 +5,40 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
+import { Response, Request } from 'express';
 import { CustomLoggerService } from './logger.service';
+
+interface ErrorResponse {
+  statusCode: number;
+  message: string | string[];
+  error: string;
+}
 
 @Catch()
 export class LoggerExceptionFilter implements ExceptionFilter {
   constructor(private readonly logger: CustomLoggerService) {}
 
-  catch(exception: unknown, host: ArgumentsHost) {
+  catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
-    const response = ctx.getResponse();
-    const request = ctx.getRequest();
+    const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request & { correlationId?: string }>();
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
-    let exceptionResponse: any;
+    let exceptionResponse: ErrorResponse;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
-      exceptionResponse = exception.getResponse();
+      const errorResponse = exception.getResponse();
+
+      if (typeof errorResponse === 'object') {
+        exceptionResponse = errorResponse as ErrorResponse;
+      } else {
+        exceptionResponse = {
+          statusCode: status,
+          message: String(errorResponse),
+          error: 'Error',
+        };
+      }
     } else if (exception instanceof Error) {
       exceptionResponse = {
         statusCode: status,
@@ -38,7 +55,7 @@ export class LoggerExceptionFilter implements ExceptionFilter {
 
     // Log the exception
     this.logger.error(
-      `Exception caught: ${exception}`,
+      `Exception caught: ${String(exception)}`,
       exception instanceof Error ? exception.stack : undefined,
       {
         path: request.url,
