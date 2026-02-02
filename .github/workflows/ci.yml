@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format -- --check
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18, 20]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm run test:cov
+
+      - name: Run e2e tests
+        run: npm run test:e2e
+
+      - name: Upload coverage to Codecov
+        if: matrix.node-version == 18
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+  validate-commits:
+    name: Validate Commit Messages
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit messages
+        run: |
+          # Get all commits in the PR
+          commits=$(git log --format=%B origin/${{ github.base_ref }}..HEAD)
+
+          # Conventional commit pattern
+          pattern="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?: .+"
+
+          invalid_commits=""
+          while IFS= read -r commit; do
+            if [ -n "$commit" ] && ! echo "$commit" | grep -qE "$pattern"; then
+              invalid_commits="$invalid_commits\n- $commit"
+            fi
+          done <<< "$commits"
+
+          if [ -n "$invalid_commits" ]; then
+            echo "❌ Invalid commit messages found:"
+            echo -e "$invalid_commits"
+            echo ""
+            echo "Commits must follow Conventional Commits format:"
+            echo "  <type>[optional scope]: <description>"
+            echo ""
+            echo "Valid types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert"
+            exit 1
+          fi
+
+          echo "✅ All commit messages are valid"

@@ -1,0 +1,583 @@
+# Exception Handling Rules for AI Agents
+
+This document provides strict rules and guidelines for AI agents when creating, modifying, or working with exceptions in this NestJS project.
+
+## 🎯 Core Principles
+
+1. **All exceptions MUST use the standardized exception system**
+2. **Never use raw NestJS exceptions directly** (BadRequestException, NotFoundException, etc.)
+3. **All exceptions MUST be domain-centric** (organized by domain, not in common/utils)
+4. **Every exception MUST have a type from ExceptionTypeEnum**
+5. **Exception responses MUST follow the BaseExceptionDto structure**
+
+---
+
+## 📁 File Organization Rules
+
+### ✅ DO: Organize exceptions by domain
+
+```
+src/
+├── core/
+│   └── exceptions/              # Core/shared exceptions only
+│       ├── http/                # HTTP-related exceptions
+│       ├── database/            # Database-related exceptions
+│       └── decorators/          # Swagger decorators
+│
+└── features/
+    ├── users/
+    │   └── exceptions/          # User domain exceptions
+    │       ├── user-not-verified.exception.ts
+    │       └── user-suspended.exception.ts
+    │
+    └── payments/
+        └── exceptions/          # Payment domain exceptions
+            ├── insufficient-funds.exception.ts
+            └── payment-declined.exception.ts
+```
+
+### ❌ DON'T: Put exceptions in common/utils
+
+```
+❌ src/common/exceptions/
+❌ src/utils/exceptions/
+❌ src/shared/exceptions/
+```
+
+---
+
+## 🏗️ Exception Class Structure
+
+### Rule 1: All Exception Classes MUST Extend HttpException
+
+```typescript
+import { HttpException, HttpStatus } from '@nestjs/common';
+```
+
+### Rule 2: All Exception Classes MUST Use BaseExceptionDto
+
+```typescript
+import { BaseExceptionDto } from '@/core/exceptions';
+```
+
+### Rule 3: Exception Class Naming Convention
+
+Format: `{DomainConcept}{Action}Exception`
+
+**Examples:**
+- ✅ `UserNotFoundException`
+- ✅ `EmailAlreadyExistsException`
+- ✅ `InsufficientFundsException`
+- ✅ `PaymentDeclinedException`
+- ❌ `UserException` (too generic)
+- ❌ `NotFound` (missing Exception suffix)
+- ❌ `UserError` (use Exception, not Error)
+
+### Rule 4: Exception Class Template
+
+```typescript
+import { HttpException, HttpStatus } from '@nestjs/common';
+import { ExceptionTypeEnum, BaseExceptionDto } from '@/core/exceptions';
+
+/**
+ * Thrown when [describe the specific condition]
+ * 
+ * @example
+ * throw new UserNotFoundException(userId);
+ */
+export class UserNotFoundException extends HttpException {
+  constructor(identifier: string | number) {
+    const baseExceptionDto = BaseExceptionDto.CreateBaseException(
+      [identifier.toString()],
+      HttpStatus.NOT_FOUND,
+      ExceptionTypeEnum.NOT_FOUND,
+      `User with identifier ${identifier} not found`,
+    );
+    super(baseExceptionDto, HttpStatus.NOT_FOUND);
+  }
+}
+```
+
+**Required Components:**
+1. JSDoc comment explaining when to throw
+2. Example in JSDoc
+3. Extends `HttpException`
+4. Uses `BaseExceptionDto.CreateBaseException()`
+5. Proper HttpStatus
+6. Proper ExceptionTypeEnum
+
+---
+
+## 📝 Exception Types (ExceptionTypeEnum)
+
+### Rule 5: Use Existing Types When Possible
+
+Available types in `ExceptionTypeEnum`:
+
+```typescript
+export enum ExceptionTypeEnum {
+  BAD_REQUEST = 'BAD_REQUEST',           // Invalid request data
+  NOT_FOUND = 'NOT_FOUND',               // Resource not found
+  VALIDATION = 'VALIDATION',             // DTO validation failures
+  INCORRECT_ID = 'INCORRECT_ID',         // Invalid ID format
+  FOREIGN_KEY_VIOLATION = 'FOREIGN_KEY_VIOLATION',  // DB FK constraint
+  UNIQUE_VIOLATION = 'UNIQUE_VIOLATION', // DB unique constraint
+  NOT_NULL_VIOLATION = 'NOT_NULL_VIOLATION',  // DB not-null constraint
+  INTERNAL_SERVER_ERROR = 'INTERNAL_SERVER_ERROR',  // Server errors
+  UNAUTHORIZED = 'UNAUTHORIZED',         // No authentication
+  FORBIDDEN = 'FORBIDDEN',               // Insufficient permissions
+  CONFLICT = 'CONFLICT',                 // Resource conflict
+  UNPROCESSABLE_ENTITY = 'UNPROCESSABLE_ENTITY',  // Cannot process
+}
+```
+
+### Rule 6: When to Add New Exception Types
+
+Only add new types if:
+1. None of the existing types fit
+2. The new type represents a distinct error category
+3. It will be used across multiple domains
+4. You have domain expert approval
+
+**To add a new type:**
+
+```typescript
+// src/core/exceptions/exception-type.enum.ts
+export enum ExceptionTypeEnum {
+  // ... existing types ...
+  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',  // New type
+}
+```
+
+---
+
+## 🎨 Exception Patterns
+
+### Pattern 1: Simple Not Found Exception
+
+```typescript
+export class ProductNotFoundException extends HttpException {
+  constructor(productId: string) {
+    const baseExceptionDto = BaseExceptionDto.CreateBaseException(
+      [productId],
+      HttpStatus.NOT_FOUND,
+      ExceptionTypeEnum.NOT_FOUND,
+      `Product with ID ${productId} not found`,
+    );
+    super(baseExceptionDto, HttpStatus.NOT_FOUND);
+  }
+}
+
+// Usage:
+throw new ProductNotFoundException(productId);
+```
+
+### Pattern 2: Validation Exception with Multiple Fields
+
+```typescript
+export class InvalidUserDataException extends HttpException {
+  constructor(fields: string[], detail: string) {
+    const baseExceptionDto = BaseExceptionDto.CreateBaseException(
+      fields,
+      HttpStatus.BAD_REQUEST,
+      ExceptionTypeEnum.VALIDATION,
+      detail,
+    );
+    super(baseExceptionDto, HttpStatus.BAD_REQUEST);
+  }
+}
+
+// Usage:
+throw new InvalidUserDataException(
+  ['email', 'password'],
+  'Email must be valid and password must be at least 8 characters'
+);
+```
+
+### Pattern 3: Business Logic Exception
+
+```typescript
+export class InsufficientFundsException extends HttpException {
+  constructor(userId: string, required: number, available: number) {
+    const baseExceptionDto = BaseExceptionDto.CreateBaseException(
+      [userId],
+      HttpStatus.UNPROCESSABLE_ENTITY,
+      ExceptionTypeEnum.UNPROCESSABLE_ENTITY,
+      `Insufficient funds. Required: ${required}, Available: ${available}`,
+    );
+    super(baseExceptionDto, HttpStatus.UNPROCESSABLE_ENTITY);
+  }
+}
+
+// Usage:
+throw new InsufficientFundsException(userId, requiredAmount, userBalance);
+```
+
+### Pattern 4: Unauthorized/Forbidden Exceptions
+
+```typescript
+// Unauthorized - No authentication
+export class InvalidCredentialsException extends HttpException {
+  constructor() {
+    const baseExceptionDto = BaseExceptionDto.CreateBaseException(
+      [],
+      HttpStatus.UNAUTHORIZED,
+      ExceptionTypeEnum.UNAUTHORIZED,
+      'Invalid email or password',
+    );
+    super(baseExceptionDto, HttpStatus.UNAUTHORIZED);
+  }
+}
+
+// Forbidden - Insufficient permissions
+export class InsufficientPermissionsException extends HttpException {
+  constructor(resource: string, action: string) {
+    const baseExceptionDto = BaseExceptionDto.CreateBaseException(
+      [],
+      HttpStatus.FORBIDDEN,
+      ExceptionTypeEnum.FORBIDDEN,
+      `You do not have permission to ${action} ${resource}`,
+    );
+    super(baseExceptionDto, HttpStatus.FORBIDDEN);
+  }
+}
+```
+
+### Pattern 5: Database Constraint Violations
+
+```typescript
+export class EmailAlreadyExistsException extends HttpException {
+  constructor(email: string) {
+    const baseExceptionDto = BaseExceptionDto.CreateBaseException(
+      ['email'],
+      HttpStatus.CONFLICT,
+      ExceptionTypeEnum.UNIQUE_VIOLATION,
+      `Email ${email} is already registered`,
+    );
+    super(baseExceptionDto, HttpStatus.CONFLICT);
+  }
+}
+
+// Usage in service:
+try {
+  await this.userRepository.persistAndFlush(user);
+} catch (error: any) {
+  if (error.code === '23505') { // PostgreSQL unique violation
+    throw new EmailAlreadyExistsException(user.email);
+  }
+  throw new DatabaseOperationException(error, 'createUser');
+}
+```
+
+---
+
+## 🔍 Using Core Exceptions
+
+### Rule 7: Reuse Core Exceptions When Possible
+
+Use these from `@/core/exceptions`:
+
+```typescript
+import {
+  CustomBadRequestException,
+  NotFoundException,
+  UnauthorizedException,
+  ForbiddenException,
+  DatabaseOperationException,
+} from '@/core/exceptions';
+
+// Generic not found
+throw new NotFoundException('User', userId);
+
+// Generic bad request with validation
+throw new CustomBadRequestException(
+  ['email'],
+  ExceptionTypeEnum.VALIDATION,
+  'Invalid email format'
+);
+
+// Database operation error
+throw new DatabaseOperationException(error, 'createUser');
+```
+
+### Rule 8: Create Domain-Specific Exceptions for Business Logic
+
+```typescript
+// ✅ Domain-specific exception
+export class UserNotVerifiedException extends HttpException {
+  constructor(userId: string) {
+    const baseExceptionDto = BaseExceptionDto.CreateBaseException(
+      [userId],
+      HttpStatus.FORBIDDEN,
+      ExceptionTypeEnum.FORBIDDEN,
+      'User email must be verified to perform this action',
+    );
+    super(baseExceptionDto, HttpStatus.FORBIDDEN);
+  }
+}
+```
+
+---
+
+## 📋 Exception Response Structure
+
+### Rule 9: All Exceptions MUST Return This Structure
+
+```typescript
+{
+  status: number;           // HTTP status code (400, 404, 500, etc.)
+  message: string;          // Human-readable error message
+  code: string;             // HTTP status name ('BAD_REQUEST', 'NOT_FOUND', etc.)
+  target: string[];         // Fields that caused the error
+  timestamp: Date;          // When the error occurred
+  type: ExceptionTypeEnum;  // Exception type classification
+  detail: string;           // Detailed error description
+}
+```
+
+**Example Response:**
+
+```json
+{
+  "status": 404,
+  "message": "not found error(s) in 123",
+  "code": "NOT_FOUND",
+  "target": ["123"],
+  "timestamp": "2026-02-02T10:30:00.000Z",
+  "type": "NOT_FOUND",
+  "detail": "User with identifier 123 not found"
+}
+```
+
+---
+
+## 🎯 Exception HTTP Status Mapping
+
+### Rule 10: Use Correct HTTP Status Codes
+
+| Exception Type | HTTP Status | Use When |
+|---------------|-------------|----------|
+| VALIDATION | 400 | DTO validation fails |
+| BAD_REQUEST | 400 | Invalid request data |
+| INCORRECT_ID | 400 | Invalid ID format |
+| UNAUTHORIZED | 401 | No authentication |
+| FORBIDDEN | 403 | Insufficient permissions |
+| NOT_FOUND | 404 | Resource doesn't exist |
+| CONFLICT | 409 | Resource conflict |
+| UNIQUE_VIOLATION | 409 | DB unique constraint |
+| UNPROCESSABLE_ENTITY | 422 | Cannot process valid request |
+| INTERNAL_SERVER_ERROR | 500 | Server-side errors |
+| FOREIGN_KEY_VIOLATION | 500 | DB FK constraint |
+| NOT_NULL_VIOLATION | 500 | DB not-null constraint |
+
+---
+
+## 📚 Swagger Documentation
+
+### Rule 11: Document All Exception Responses
+
+```typescript
+import { ApiCustomExceptionResponse } from '@/core/exceptions';
+
+@Controller('users')
+export class UsersController {
+  @Post()
+  @ApiCustomExceptionResponse(400, 'Invalid user data')
+  @ApiCustomExceptionResponse(409, 'Email already exists')
+  @ApiCustomExceptionResponse(500, 'Database operation failed')
+  async createUser(@Body() dto: CreateUserDto) {
+    // Implementation
+  }
+
+  @Get(':id')
+  @ApiCustomExceptionResponse(404, 'User not found')
+  async getUser(@Param('id') id: string) {
+    // Implementation
+  }
+}
+```
+
+---
+
+## 🧪 Exception Testing
+
+### Rule 12: Write Tests for Custom Exceptions
+
+```typescript
+describe('UserNotFoundException', () => {
+  it('should create exception with correct structure', () => {
+    const exception = new UserNotFoundException('123');
+    const response = exception.getResponse() as BaseExceptionDto;
+
+    expect(response.status).toBe(404);
+    expect(response.code).toBe('NOT_FOUND');
+    expect(response.type).toBe(ExceptionTypeEnum.NOT_FOUND);
+    expect(response.target).toEqual(['123']);
+    expect(response.detail).toContain('User with identifier 123 not found');
+    expect(response.timestamp).toBeInstanceOf(Date);
+  });
+});
+```
+
+---
+
+## 🚫 Common Mistakes to Avoid
+
+### ❌ DON'T: Use Raw NestJS Exceptions
+
+```typescript
+// ❌ WRONG
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+throw new BadRequestException('User not found');
+throw new NotFoundException('Invalid data');
+```
+
+### ❌ DON'T: Return Plain Objects
+
+```typescript
+// ❌ WRONG
+return {
+  error: 'User not found',
+  statusCode: 404,
+};
+```
+
+### ❌ DON'T: Create Generic Exception Classes
+
+```typescript
+// ❌ WRONG - Too generic
+export class UserException extends HttpException { }
+export class ValidationException extends HttpException { }
+```
+
+### ❌ DON'T: Skip Exception Types
+
+```typescript
+// ❌ WRONG - Missing exception type
+const baseExceptionDto = BaseExceptionDto.CreateBaseException(
+  [userId],
+  HttpStatus.NOT_FOUND,
+  // Missing ExceptionTypeEnum parameter!
+  'User not found',
+);
+```
+
+### ❌ DON'T: Use Empty Target Arrays for Specific Errors
+
+```typescript
+// ❌ WRONG - Should specify which field
+throw new CustomBadRequestException(
+  [],  // Should be ['email']
+  ExceptionTypeEnum.VALIDATION,
+  'Email is invalid'
+);
+
+// ✅ CORRECT
+throw new CustomBadRequestException(
+  ['email'],
+  ExceptionTypeEnum.VALIDATION,
+  'Email is invalid'
+);
+```
+
+---
+
+## ✅ Checklist for Creating New Exceptions
+
+Before creating a new exception, verify:
+
+- [ ] Exception name follows `{DomainConcept}{Action}Exception` format
+- [ ] Placed in appropriate domain's `exceptions/` folder
+- [ ] Extends `HttpException`
+- [ ] Uses `BaseExceptionDto.CreateBaseException()`
+- [ ] Includes proper `ExceptionTypeEnum`
+- [ ] Has correct `HttpStatus`
+- [ ] Includes JSDoc with description and example
+- [ ] Target array specifies relevant fields
+- [ ] Detail message is clear and actionable
+- [ ] Documented with `@ApiCustomExceptionResponse` in controllers
+- [ ] Has unit tests
+- [ ] No raw NestJS exceptions used
+
+---
+
+## 📖 Examples by Domain
+
+### Users Domain
+
+```typescript
+// src/features/users/exceptions/user-not-verified.exception.ts
+export class UserNotVerifiedException extends HttpException {
+  constructor(userId: string) {
+    const baseExceptionDto = BaseExceptionDto.CreateBaseException(
+      [userId],
+      HttpStatus.FORBIDDEN,
+      ExceptionTypeEnum.FORBIDDEN,
+      'Email verification required to perform this action',
+    );
+    super(baseExceptionDto, HttpStatus.FORBIDDEN);
+  }
+}
+
+// src/features/users/exceptions/email-already-exists.exception.ts
+export class EmailAlreadyExistsException extends HttpException {
+  constructor(email: string) {
+    const baseExceptionDto = BaseExceptionDto.CreateBaseException(
+      ['email'],
+      HttpStatus.CONFLICT,
+      ExceptionTypeEnum.UNIQUE_VIOLATION,
+      `Email ${email} is already registered`,
+    );
+    super(baseExceptionDto, HttpStatus.CONFLICT);
+  }
+}
+```
+
+### Payments Domain
+
+```typescript
+// src/features/payments/exceptions/insufficient-funds.exception.ts
+export class InsufficientFundsException extends HttpException {
+  constructor(required: number, available: number) {
+    const baseExceptionDto = BaseExceptionDto.CreateBaseException(
+      [],
+      HttpStatus.UNPROCESSABLE_ENTITY,
+      ExceptionTypeEnum.UNPROCESSABLE_ENTITY,
+      `Insufficient funds. Required: $${required}, Available: $${available}`,
+    );
+    super(baseExceptionDto, HttpStatus.UNPROCESSABLE_ENTITY);
+  }
+}
+
+// src/features/payments/exceptions/payment-declined.exception.ts
+export class PaymentDeclinedException extends HttpException {
+  constructor(reason: string) {
+    const baseExceptionDto = BaseExceptionDto.CreateBaseException(
+      [],
+      HttpStatus.UNPROCESSABLE_ENTITY,
+      ExceptionTypeEnum.UNPROCESSABLE_ENTITY,
+      `Payment declined: ${reason}`,
+    );
+    super(baseExceptionDto, HttpStatus.UNPROCESSABLE_ENTITY);
+  }
+}
+```
+
+---
+
+## 🎓 Summary for AI Agents
+
+When working with exceptions:
+
+1. **Never use raw NestJS exceptions**
+2. **Always use BaseExceptionDto**
+3. **Organize by domain, not in common**
+4. **Follow naming conventions**
+5. **Use appropriate ExceptionTypeEnum**
+6. **Include JSDoc and examples**
+7. **Document in Swagger**
+8. **Write tests**
+9. **Reuse core exceptions when possible**
+10. **Create domain-specific exceptions for business logic**
+
+**Remember:** Consistent exception handling improves API usability, debugging, and maintainability!

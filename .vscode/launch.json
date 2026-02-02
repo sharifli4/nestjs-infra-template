@@ -1,0 +1,64 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug NestJS",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "start:debug"],
+      "console": "integratedTerminal",
+      "restart": true,
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true,
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "envFile": "${workspaceFolder}/.env"
+    },
+    {
+      "name": "Debug NestJS (with --watch)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "start:dev"],
+      "console": "integratedTerminal",
+      "restart": true,
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true,
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "envFile": "${workspaceFolder}/.env"
+    },
+    {
+      "name": "Attach to Process",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true,
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"]
+    },
+    {
+      "name": "Debug E2E Tests",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "test:e2e"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true,
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "envFile": "${workspaceFolder}/.env"
+    },
+    {
+      "name": "Debug Unit Tests (Current File)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "test", "--", "${fileBasename}"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true,
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"]
+    }
+  ]
+}

@@ -1,0 +1,307 @@
+# NestJS Infrastructure Template - AI Agent Rules
+
+This is the master rules document for AI agents working on this NestJS project.
+
+## 📚 Rule Categories
+
+This project has comprehensive rules organized by topic:
+
+### 1. [exceptions.mdc](./exceptions.mdc) - Exception Handling Rules
+- How to create and throw exceptions
+- Exception types and HTTP status mapping
+- Swagger documentation for exceptions
+- Domain-specific exception patterns
+
+### 2. [domain-architecture.mdc](./domain-architecture.mdc) - Domain-Centric Architecture
+- Project structure rules
+- NO common/utils folders
+- Domain organization patterns
+- Dependency direction rules
+
+### 3. [configuration.mdc](./configuration.mdc) - Configuration Management
+- Configuration isolation by domain
+- Environment variable naming
+- Type-safe configuration access
+- Configuration validation
+
+---
+
+## 🎯 Quick Reference
+
+### Top 10 Rules (Never Break These!)
+
+1. **NO `common/` or `utils/` folders** - Everything is domain-centric
+2. **Never use raw NestJS exceptions** - Use BaseExceptionDto system
+3. **Configuration isolation** - Each domain has its own config namespace
+4. **No cross-domain dependencies** - Features can't depend on other features
+5. **All exceptions use ExceptionTypeEnum** - Standardized error types
+6. **Domain prefix for env vars** - `USERS_`, `NOTIFICATIONS_`, etc.
+7. **Use design patterns** - Factory, Builder, Strategy for modules
+8. **Document with Swagger** - Use `@ApiCustomExceptionResponse`
+9. **Type everything** - Interfaces for configs, DTOs, exceptions
+10. **Test your code** - Tests live with their code in domain folders
+
+---
+
+## 🏗️ Project Architecture Overview
+
+```
+src/
+├── core/                    # Core infrastructure ONLY
+│   ├── exceptions/          # Exception handling system
+│   ├── factories/           # Module loading patterns
+│   ├── guards/              # Auth guards
+│   └── decorators/          # Cross-domain decorators
+│
+├── config/                  # Infrastructure configs
+│   ├── database.config.ts
+│   ├── redis.config.ts
+│   └── logger.config.ts
+│
+├── database/                # Base entities
+├── logger/                  # Logging infrastructure
+├── redis/                   # Caching infrastructure
+│
+└── features/                # ALL BUSINESS DOMAINS
+    ├── users/
+    │   ├── config/          # Domain config
+    │   ├── entities/        # Domain entities
+    │   ├── dto/             # Domain DTOs
+    │   ├── exceptions/      # Domain exceptions
+    │   ├── services/        # Business logic
+    │   ├── controllers/     # HTTP endpoints
+    │   ├── tests/           # Domain tests
+    │   └── users.module.ts
+    │
+    └── [other-domains]/
+```
+
+---
+
+## 🎨 Design Patterns Used
+
+### Factory Pattern
+- `DatabaseModuleFactory` - Creates database modules
+- `RedisModuleFactory` - Creates Redis modules
+- `ConfigurationLoaderFactory` - Creates config loaders
+
+### Builder Pattern
+- `InfrastructureModuleBuilder` - Fluent module loading
+
+### Strategy Pattern
+- `ModuleLoadStrategy` - Runtime module loading decisions
+
+See [DESIGN_PATTERNS.md](../DESIGN_PATTERNS.md) for details.
+
+---
+
+## 📝 Code Examples
+
+### Creating a New Exception
+
+```typescript
+// src/features/users/exceptions/user-not-verified.exception.ts
+import { HttpException, HttpStatus } from '@nestjs/common';
+import { ExceptionTypeEnum, BaseExceptionDto } from '@/core/exceptions';
+
+export class UserNotVerifiedException extends HttpException {
+  constructor(userId: string) {
+    const baseExceptionDto = BaseExceptionDto.CreateBaseException(
+      [userId],
+      HttpStatus.FORBIDDEN,
+      ExceptionTypeEnum.FORBIDDEN,
+      'Email verification required to perform this action',
+    );
+    super(baseExceptionDto, HttpStatus.FORBIDDEN);
+  }
+}
+```
+
+### Creating a New Domain Configuration
+
+```typescript
+// src/features/users/config/users.config.ts
+import { registerAs } from '@nestjs/config';
+
+export interface UsersConfig {
+  maxLoginAttempts: number;
+  lockoutDuration: number;
+}
+
+export default registerAs('users', (): UsersConfig => ({
+  maxLoginAttempts: parseInt(process.env.USERS_MAX_LOGIN_ATTEMPTS || '5', 10),
+  lockoutDuration: parseInt(process.env.USERS_LOCKOUT_DURATION || '900', 10),
+}));
+```
+
+### Creating a New Feature Domain
+
+```bash
+# 1. Create domain folder structure
+src/features/orders/
+├── config/
+│   └── orders.config.ts
+├── entities/
+│   └── order.entity.ts
+├── dto/
+│   ├── create-order.dto.ts
+│   └── update-order.dto.ts
+├── exceptions/
+│   └── order-not-found.exception.ts
+├── services/
+│   └── orders.service.ts
+├── controllers/
+│   └── orders.controller.ts
+├── tests/
+│   └── orders.service.spec.ts
+└── orders.module.ts
+```
+
+```typescript
+// 2. Create module
+// src/features/orders/orders.module.ts
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import ordersConfig from './config/orders.config';
+
+@Module({
+  imports: [
+    ConfigModule.forFeature(ordersConfig),
+  ],
+  controllers: [OrdersController],
+  providers: [OrdersService],
+  exports: [OrdersService],
+})
+export class OrdersModule {}
+
+// 3. Register in app.module.ts
+@Module({
+  imports: [
+    // ... other imports
+    OrdersModule,
+  ],
+})
+export class AppModule {}
+```
+
+---
+
+## ✅ Checklist for New Features
+
+When creating a new feature:
+
+- [ ] Create folder in `src/features/{domain-name}/`
+- [ ] Add domain configuration in `config/`
+- [ ] Use domain prefix for env vars (e.g., `ORDERS_`)
+- [ ] Create entities extending `BaseEntity`
+- [ ] Create DTOs with validation decorators
+- [ ] Create domain-specific exceptions
+- [ ] Use `@ApiCustomExceptionResponse` in controllers
+- [ ] Register config with `ConfigModule.forFeature()`
+- [ ] Access only own domain's configuration
+- [ ] Add tests in `tests/` folder
+- [ ] Export module in `app.module.ts`
+- [ ] Update `.env.example`
+
+---
+
+## 🚫 Common Anti-Patterns to Avoid
+
+### ❌ Don't Create Shared Folders
+```typescript
+❌ src/common/
+❌ src/utils/
+❌ src/helpers/
+❌ src/shared/
+```
+
+### ❌ Don't Use Raw NestJS Exceptions
+```typescript
+❌ throw new BadRequestException('Error');
+❌ throw new NotFoundException('Not found');
+✅ throw new UserNotFoundException(userId);
+```
+
+### ❌ Don't Access Other Domain Configs
+```typescript
+// In UsersService
+❌ const smtp = this.configService.get<NotificationsConfig>('notifications');
+✅ const config = this.configService.get<UsersConfig>('users');
+```
+
+### ❌ Don't Create Cross-Domain Dependencies
+```typescript
+// In OrdersService
+❌ constructor(private usersService: UsersService) {}
+✅ Use events or create core service
+```
+
+---
+
+## 🎓 Learning Resources
+
+### Project Documentation
+- [README.md](../README.md) - Getting started guide
+- [spec.md](../spec.md) - Complete specification
+- [DESIGN_PATTERNS.md](../DESIGN_PATTERNS.md) - Design patterns explained
+- [OPTIONAL_FEATURES.md](../OPTIONAL_FEATURES.md) - Optional infrastructure guide
+- [IMPLEMENTATION.md](../IMPLEMENTATION.md) - Implementation summary
+
+### External Resources
+- [NestJS Documentation](https://docs.nestjs.com)
+- [MikroORM Documentation](https://mikro-orm.io)
+- [Domain-Driven Design](https://martinfowler.com/bliki/DomainDrivenDesign.html)
+- [SOLID Principles](https://en.wikipedia.org/wiki/SOLID)
+
+---
+
+## 🤝 Working with This Project
+
+### For AI Agents
+
+1. **Read the rules** - Familiarize yourself with all rule files
+2. **Follow patterns** - Use existing code as examples
+3. **Domain-first thinking** - Always ask "which domain does this belong to?"
+4. **Type safety** - Use TypeScript features for type checking
+5. **Test your code** - Write tests alongside implementation
+6. **Document exceptions** - Use Swagger decorators
+7. **Ask when unsure** - Better to clarify than break patterns
+
+### Code Review Checklist
+
+When reviewing or creating code:
+
+- [ ] No `common/` or `utils/` folders created
+- [ ] Exceptions use `BaseExceptionDto`
+- [ ] All exceptions documented with Swagger
+- [ ] Configuration uses `registerAs` with namespace
+- [ ] Env vars have domain prefixes
+- [ ] No cross-domain dependencies
+- [ ] Tests included
+- [ ] Types defined for everything
+- [ ] Follows existing patterns
+
+---
+
+## 📞 Questions?
+
+If you're unsure about:
+- **Where to put code** → Check [domain-architecture.mdc](./domain-architecture.mdc)
+- **How to handle errors** → Check [exceptions.mdc](./exceptions.mdc)
+- **How to add config** → Check [configuration.mdc](./configuration.mdc)
+- **Design patterns** → Check [DESIGN_PATTERNS.md](../DESIGN_PATTERNS.md)
+
+---
+
+## 🎯 Remember
+
+This project follows:
+- ✅ Domain-Driven Design
+- ✅ SOLID Principles
+- ✅ Design Patterns (Factory, Builder, Strategy)
+- ✅ Configuration Isolation
+- ✅ Type Safety
+- ✅ Comprehensive Error Handling
+- ✅ Clean Architecture
+
+**Quality over speed. Maintainability over convenience.**

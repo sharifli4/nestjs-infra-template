@@ -1,0 +1,541 @@
+# Domain-Centric Architecture Rules for AI Agents
+
+This document provides strict rules for AI agents when organizing code in this NestJS project.
+
+## 🎯 Core Principle
+
+**NO `common/` or `utils/` folders. Everything is domain-centric.**
+
+---
+
+## 📁 Project Structure Rules
+
+### Rule 1: Use Domain-First Organization
+
+```
+src/
+├── core/                    # ✅ Core infrastructure only
+│   ├── exceptions/          # Exception handling system
+│   ├── factories/           # Module factories
+│   └── guards/              # Auth guards, etc.
+│
+├── config/                  # ✅ Infrastructure config only
+│   ├── database.config.ts
+│   ├── redis.config.ts
+│   └── logger.config.ts
+│
+├── database/                # ✅ Base entities only
+│   ├── base.entity.ts
+│   └── soft-deletable.entity.ts
+│
+├── logger/                  # ✅ Logging infrastructure
+├── redis/                   # ✅ Caching infrastructure
+├── vault/                   # ✅ Secret management
+│
+└── features/                # ✅ All business domains
+    ├── users/
+    │   ├── config/
+    │   │   └── users.config.ts
+    │   ├── entities/
+    │   ├── dto/
+    │   ├── exceptions/
+    │   ├── services/
+    │   ├── controllers/
+    │   ├── users.module.ts
+    │   └── tests/
+    │
+    └── [other-domains]/
+```
+
+### Rule 2: Forbidden Folders
+
+**NEVER create these folders:**
+
+```
+❌ src/common/
+❌ src/utils/
+❌ src/helpers/
+❌ src/shared/
+❌ src/lib/
+❌ src/utilities/
+```
+
+---
+
+## 🏗️ Where to Put What
+
+### Infrastructure Code → `src/core/`
+
+Place in `src/core/` if it's:
+- Exception handling system
+- Guards (auth, roles, etc.)
+- Interceptors (global)
+- Filters (global)
+- Decorators (cross-domain)
+- Factories (module loading)
+- Pipes (global validation)
+
+**Examples:**
+```
+src/core/
+├── exceptions/              # Exception system
+├── factories/               # Module factories
+├── guards/
+│   ├── jwt-auth.guard.ts
+│   └── roles.guard.ts
+├── decorators/
+│   ├── current-user.decorator.ts
+│   └── roles.decorator.ts
+└── interceptors/
+    └── transform-response.interceptor.ts
+```
+
+### Domain-Specific Code → `src/features/{domain}/`
+
+Place in domain folder if it's:
+- Business logic
+- Domain entities
+- Domain DTOs
+- Domain exceptions
+- Domain services
+- Domain controllers
+- Domain configuration
+- Domain utilities (domain-specific helpers)
+
+**Example: Users Domain**
+```
+src/features/users/
+├── config/
+│   └── users.config.ts           # User domain config
+├── entities/
+│   ├── user.entity.ts
+│   └── user-profile.entity.ts
+├── dto/
+│   ├── create-user.dto.ts
+│   └── update-user.dto.ts
+├── exceptions/
+│   ├── user-not-found.exception.ts
+│   └── email-already-exists.exception.ts
+├── services/
+│   ├── users.service.ts
+│   └── user-profile.service.ts
+├── controllers/
+│   └── users.controller.ts
+├── utils/                         # ✅ Domain-specific utils
+│   ├── hash-user-id.util.ts      # Only used in users domain
+│   └── validate-username.util.ts
+├── users.module.ts
+└── tests/
+    ├── users.service.spec.ts
+    └── users.controller.spec.ts
+```
+
+### Infrastructure Services → Dedicated folders
+
+Place in root-level folders:
+- `src/logger/` - Logging infrastructure
+- `src/redis/` - Caching infrastructure
+- `src/database/` - Database base entities
+- `src/config/` - Infrastructure configs
+
+---
+
+## 🎨 Configuration Rules
+
+### Rule 3: Domain-Isolated Configuration
+
+Each domain has its own config:
+
+```typescript
+// ✅ src/features/users/config/users.config.ts
+export default registerAs('users', () => ({
+  hashIdSalt: process.env.USERS_HASHID_SALT,
+  maxLoginAttempts: parseInt(process.env.USERS_MAX_LOGIN_ATTEMPTS || '5'),
+}));
+
+// ✅ src/features/notifications/config/notifications.config.ts
+export default registerAs('notifications', () => ({
+  smtpHost: process.env.NOTIFICATIONS_SMTP_HOST,
+  smtpPort: parseInt(process.env.NOTIFICATIONS_SMTP_PORT || '587'),
+}));
+```
+
+### Rule 4: Configuration Access
+
+```typescript
+// ✅ CORRECT: Access only your domain's config
+@Injectable()
+export class UsersService {
+  private readonly config: UsersConfig;
+
+  constructor(private configService: ConfigService) {
+    this.config = this.configService.get<UsersConfig>('users')!;
+  }
+}
+
+// ❌ WRONG: Don't access other domain configs
+@Injectable()
+export class UsersService {
+  constructor(private configService: ConfigService) {
+    // ❌ Users service shouldn't access notifications config
+    const smtp = this.configService.get<NotificationsConfig>('notifications');
+  }
+}
+```
+
+---
+
+## 📦 Module Organization
+
+### Rule 5: Feature Module Structure
+
+Every feature domain MUST have this structure:
+
+```
+feature-name/
+├── config/                    # Domain configuration
+├── entities/                  # Database entities
+├── dto/                       # Data Transfer Objects
+├── exceptions/                # Domain exceptions
+├── services/                  # Business logic
+├── controllers/               # HTTP endpoints
+├── repositories/              # Data access (if needed)
+├── utils/                     # Domain-specific utilities
+├── tests/                     # Tests
+├── feature-name.module.ts     # Module definition
+└── index.ts                   # Barrel exports (optional)
+```
+
+### Rule 6: Module Registration
+
+```typescript
+// src/features/users/users.module.ts
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import usersConfig from './config/users.config';
+
+@Module({
+  imports: [
+    ConfigModule.forFeature(usersConfig), // Register domain config
+    // Other imports
+  ],
+  controllers: [UsersController],
+  providers: [UsersService],
+  exports: [UsersService],
+})
+export class UsersModule {}
+```
+
+---
+
+## 🔧 Utility Functions
+
+### Rule 7: Domain-Specific Utils
+
+If a utility is used by ONE domain, put it IN that domain:
+
+```typescript
+// ✅ CORRECT: Domain-specific utility
+// src/features/users/utils/hash-user-id.util.ts
+export function hashUserId(id: number): string {
+  // Only used in users domain
+  return hashids.encode(id);
+}
+```
+
+### Rule 8: Cross-Domain Utils → Core
+
+If a utility is used by MULTIPLE domains, put it in `src/core/`:
+
+```typescript
+// ✅ CORRECT: Used by multiple domains
+// src/core/utils/date.util.ts
+export function formatDate(date: Date): string {
+  // Used by users, orders, payments, etc.
+  return date.toISOString();
+}
+```
+
+**But ask yourself:** Should this be a service instead?
+
+```typescript
+// ✅ BETTER: Make it a service
+// src/core/services/date-formatter.service.ts
+@Injectable()
+export class DateFormatterService {
+  format(date: Date): string {
+    return date.toISOString();
+  }
+}
+```
+
+---
+
+## 🎯 Dependency Rules
+
+### Rule 9: Dependency Direction
+
+```
+Features can depend on:
+  ✅ Core infrastructure
+  ✅ Shared infrastructure (logger, redis, database)
+  ❌ Other feature domains (NO cross-domain dependencies)
+
+Core can depend on:
+  ✅ Nothing (it's the foundation)
+
+Infrastructure can depend on:
+  ✅ Core
+  ❌ Features
+```
+
+**Example:**
+
+```typescript
+// ✅ CORRECT: Users domain uses core infrastructure
+import { CustomLoggerService } from '@/logger/logger.service';
+import { RedisService } from '@/redis/redis.service';
+import { NotFoundException } from '@/core/exceptions';
+
+// ❌ WRONG: Users domain depends on Orders domain
+import { OrdersService } from '@/features/orders/services/orders.service';
+```
+
+---
+
+## 🔄 Shared Logic Between Domains
+
+### Rule 10: How to Share Logic
+
+If multiple domains need the same logic:
+
+**Option 1: Create a Core Service**
+```typescript
+// src/core/services/email-validator.service.ts
+@Injectable()
+export class EmailValidatorService {
+  validate(email: string): boolean {
+    // Validation logic
+  }
+}
+```
+
+**Option 2: Create a Separate Shared Domain**
+```typescript
+// If the logic is complex enough
+src/features/
+├── shared/                # Shared business logic
+│   ├── services/
+│   │   └── email-validator.service.ts
+│   └── shared.module.ts
+├── users/
+└── notifications/
+```
+
+**Option 3: Use Events**
+```typescript
+// Decouple domains with events
+@Injectable()
+export class UsersService {
+  async createUser(dto: CreateUserDto) {
+    const user = await this.save(dto);
+    
+    // Emit event instead of calling NotificationsService directly
+    this.eventEmitter.emit('user.created', { userId: user.id });
+  }
+}
+
+// In notifications domain
+@OnEvent('user.created')
+handleUserCreated(payload: { userId: string }) {
+  this.sendWelcomeEmail(payload.userId);
+}
+```
+
+---
+
+## 📝 Entity Organization
+
+### Rule 11: Base Entities in database/, Domain Entities in features/
+
+```typescript
+// ✅ src/database/base.entity.ts - Base for all entities
+export abstract class BaseEntity {
+  @Property()
+  createdAt: Date = new Date();
+
+  @Property({ onUpdate: () => new Date() })
+  updatedAt: Date = new Date();
+}
+
+// ✅ src/features/users/entities/user.entity.ts - Domain entity
+@Entity()
+export class User extends BaseEntity {
+  @PrimaryKey()
+  id!: number;
+
+  @Property()
+  email!: string;
+}
+```
+
+---
+
+## 🧪 Testing Organization
+
+### Rule 12: Tests Go With Their Code
+
+```
+src/features/users/
+├── services/
+│   └── users.service.ts
+├── controllers/
+│   └── users.controller.ts
+└── tests/                      # Tests for this domain
+    ├── users.service.spec.ts
+    ├── users.controller.spec.ts
+    └── integration/
+        └── users.integration.spec.ts
+```
+
+**NOT:**
+```
+❌ test/unit/users/
+❌ test/integration/users/
+```
+
+---
+
+## 📋 Checklist for New Features
+
+When creating a new feature domain:
+
+- [ ] Create folder in `src/features/{domain-name}/`
+- [ ] Add domain configuration in `config/`
+- [ ] Create entities in `entities/`
+- [ ] Create DTOs in `dto/`
+- [ ] Create domain exceptions in `exceptions/`
+- [ ] Create services in `services/`
+- [ ] Create controllers in `controllers/`
+- [ ] Create module file `{domain-name}.module.ts`
+- [ ] Register domain config with `ConfigModule.forFeature()`
+- [ ] Add tests in `tests/`
+- [ ] Export module in `src/app.module.ts`
+- [ ] Document domain in README (optional)
+
+---
+
+## 🚫 Common Mistakes
+
+### ❌ DON'T: Create shared folders
+
+```typescript
+// ❌ WRONG
+src/
+├── common/
+│   └── utils/
+│       └── string.util.ts
+└── shared/
+    └── helpers/
+        └── date.helper.ts
+```
+
+### ❌ DON'T: Cross-domain dependencies
+
+```typescript
+// ❌ WRONG: Orders depending on Users
+// src/features/orders/services/orders.service.ts
+import { UsersService } from '@/features/users/services/users.service';
+
+@Injectable()
+export class OrdersService {
+  constructor(private usersService: UsersService) {} // ❌ NO!
+}
+```
+
+### ❌ DON'T: Put everything in core
+
+```typescript
+// ❌ WRONG: Business logic in core
+src/core/
+├── services/
+│   ├── calculate-user-age.service.ts    // ❌ Should be in users domain
+│   └── format-order-total.service.ts    // ❌ Should be in orders domain
+```
+
+---
+
+## ✅ Good Examples
+
+### Example 1: Users Domain
+
+```
+src/features/users/
+├── config/
+│   └── users.config.ts
+├── entities/
+│   ├── user.entity.ts
+│   └── user-session.entity.ts
+├── dto/
+│   ├── create-user.dto.ts
+│   ├── update-user.dto.ts
+│   └── login.dto.ts
+├── exceptions/
+│   ├── user-not-found.exception.ts
+│   ├── email-already-exists.exception.ts
+│   └── invalid-credentials.exception.ts
+├── services/
+│   ├── users.service.ts
+│   ├── auth.service.ts
+│   └── user-session.service.ts
+├── controllers/
+│   ├── users.controller.ts
+│   └── auth.controller.ts
+├── utils/
+│   └── hash-user-id.util.ts
+├── tests/
+│   ├── users.service.spec.ts
+│   └── auth.service.spec.ts
+├── users.module.ts
+└── index.ts
+```
+
+### Example 2: Core Infrastructure
+
+```
+src/core/
+├── exceptions/              # Exception system
+│   ├── http/
+│   ├── database/
+│   └── decorators/
+├── factories/               # Module factories
+│   ├── database-module.factory.ts
+│   └── redis-module.factory.ts
+├── guards/                  # Auth guards
+│   ├── jwt-auth.guard.ts
+│   └── roles.guard.ts
+├── decorators/              # Custom decorators
+│   ├── current-user.decorator.ts
+│   └── roles.decorator.ts
+└── interceptors/            # Global interceptors
+    └── transform-response.interceptor.ts
+```
+
+---
+
+## 🎓 Summary for AI Agents
+
+**Golden Rules:**
+
+1. **NO `common/` or `utils/` folders**
+2. **Domain-first organization** - Put code with its domain
+3. **Configuration isolation** - Each domain has its own config
+4. **No cross-domain dependencies** - Use events or core services
+5. **Infrastructure in core** - Only truly cross-cutting concerns
+6. **Domain-specific utils stay in domain** - Don't extract prematurely
+7. **Tests with code** - Not in separate test/ folder
+8. **Base entities in database/** - Domain entities in features/
+9. **Think twice before core** - Most things belong in a domain
+10. **Use dependency direction rules** - Features → Core, never Features → Features
+
+**Remember:** When in doubt, keep it in the domain. Extract to core only when you're SURE it's used everywhere!
