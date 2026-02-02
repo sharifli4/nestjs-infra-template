@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.2.0](https://github.com/sharifli4/nestjs-infra-template/compare/v1.1.0...v1.2.0) (2026-02-02)
+
+
+### Features
+
+* enhance health check functionality with service status reporting and improved error handling ([320ad37](https://github.com/sharifli4/nestjs-infra-template/commit/320ad377b3a993be6ecadab28630971af823af14))
+
 ## 1.1.0 (2026-02-02)
 
 
